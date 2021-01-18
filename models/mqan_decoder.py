@@ -98,7 +98,7 @@ class MQANDecoder(nn.Module):
 
             answer_embedded = self.decoder_embeddings(answer[:, :-1], padding=answer_padding).last_layer
 
-            if self.args.transformer_layers > 0:
+            if self.args.transformer_layers > 0:    # default 2
                 self_attended_decoded = self.self_attentive_decoder(answer_embedded,
                                                                     self_attended_context,
                                                                     context_padding=context_padding,
@@ -107,7 +107,7 @@ class MQANDecoder(nn.Module):
             else:
                 self_attended_decoded = answer_embedded
 
-            if self.args.rnn_layers > 0:
+            if self.args.rnn_layers > 0:      # default 1
                 rnn_decoder_outputs = self.rnn_decoder(self_attended_decoded, final_context, final_question,
                                                         hidden=context_rnn_state)
                 decoder_output, vocab_pointer_switch_input, context_question_switch_input, context_attention, \
@@ -162,6 +162,7 @@ class MQANDecoder(nn.Module):
         if self.generative_vocab_size < effective_vocab_size:
             size[-1] = effective_vocab_size - self.generative_vocab_size
             buff = scaled_p_vocab.new_full(size, EPSILON)
+            # print('scaled_p_vocab', scaled_p_vocab.shape)
             scaled_p_vocab = torch.cat([scaled_p_vocab, buff], dim=buff.dim() - 1)
 
         # p_context_ptr
@@ -314,6 +315,7 @@ class MQANDecoderWrapper(object):
         if self.mqan_decoder.args.transformer_layers > 0:
             self.hiddens[0][:, self.time] = self.hiddens[0][:, self.time] + \
                                 (math.sqrt(self.mqan_decoder.self_attentive_decoder.d_model) * embedding).squeeze(1)
+            # print('self.mqan_decoder.self_attentive_decoder.layers', len(self.mqan_decoder.self_attentive_decoder.layers))
             for l in range(len(self.mqan_decoder.self_attentive_decoder.layers)):
                 self.hiddens[l + 1][:, self.time] = self.mqan_decoder.self_attentive_decoder.layers[l](self.hiddens[l][:, self.time],
                                                                                 self.self_attended_context[l],

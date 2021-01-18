@@ -110,6 +110,8 @@ class Dataset(torch.utils.data.Dataset):
                         print('extracting')
                         zfile.extractall(path)
                 elif ext in ['.gz', '.tgz']:
+                    print('zpath', zpath)
+                    print(tarfile.is_tarfile(zpath))
                     with tarfile.open(zpath, 'r:gz') as tar:
                         dirs = [member for member in tar.getmembers()]
                         tar.extractall(path=path, members=dirs)
@@ -117,7 +119,6 @@ class Dataset(torch.utils.data.Dataset):
                     with tarfile.open(zpath) as tar:
                         dirs = [member for member in tar.getmembers()]
                         tar.extractall(path=path, members=dirs)
-
         return os.path.join(path, cls.dirname)
     
     

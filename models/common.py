@@ -115,6 +115,22 @@ def pad_to_match(x, y):
     return x, torch.cat((y, extra), 1)
 
 
+class Adapter(nn.Module):
+
+    def __init__(self, dimension, hidden, activation='relu', dropout=0.2):
+        super().__init__()
+        self.down_feedforward = Feedforward(dimension, hidden)
+        self.activation = getattr(F, activation)
+        self.up_feedforward = Feedforward(hidden, dimension)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        # print('Adapter', x.shape)
+        bottle_neck = self.activation(self.down_feedforward(x))
+        # print('bottle_neck', bottle_neck.shape)
+        return self.dropout(self.up_feedforward(bottle_neck)) + x
+
+
 class LayerNorm(nn.Module):
 
     def __init__(self, d_model, eps=1e-6):
@@ -131,14 +147,24 @@ class LayerNorm(nn.Module):
 
 class ResidualBlock(nn.Module):
 
-    def __init__(self, layer, d_model, dropout_ratio):
+    def __init__(self, layer, d_model, dropout_ratio, adapter=None):
         super().__init__()
         self.layer = layer
         self.dropout = nn.Dropout(dropout_ratio)
         self.layernorm = LayerNorm(d_model)
+        if adapter is not None:
+            self.adapter = Adapter(d_model, 10)
+        else:
+            self.adapter = None
 
     def forward(self, *x, padding=None):
-        return self.layernorm(x[0] + self.dropout(self.layer(*x, padding=padding)))
+        if self.adapter is not None:
+            # print('Residual with adapter')
+            hidden = self.layer(*x, padding=padding)
+            # print('hidden shape', hidden.shape)
+            return self.layernorm(x[0] + self.dropout(self.adapter(hidden)))
+        else:
+            return self.layernorm(x[0] + self.dropout(self.layer(*x, padding=padding)))
 
 
 class Attention(nn.Module):
@@ -197,15 +223,15 @@ class LinearReLU(nn.Module):
 
 class TransformerEncoderLayer(nn.Module):
 
-    def __init__(self, dimension, n_heads, hidden, dropout):
+    def __init__(self, dimension, n_heads, hidden, dropout, adapter):
         super().__init__()
         self.selfattn = ResidualBlock(
             MultiHead(
                 dimension, dimension, n_heads, dropout),
-            dimension, dropout)
+            dimension, dropout, adapter)
         self.feedforward = ResidualBlock(
             LinearReLU(dimension, hidden),
-            dimension, dropout)
+            dimension, dropout, adapter)
 
     def forward(self, x, padding=None):
         return self.feedforward(self.selfattn(x, x, x, padding=padding))
@@ -213,10 +239,10 @@ class TransformerEncoderLayer(nn.Module):
 
 class TransformerEncoder(nn.Module):
 
-    def __init__(self, dimension, n_heads, hidden, num_layers, dropout):
+    def __init__(self, dimension, n_heads, hidden, num_layers, dropout, adapter=None):
         super().__init__()
         self.layers = nn.ModuleList(
-            [TransformerEncoderLayer(dimension, n_heads, hidden, dropout) for i in range(num_layers)])
+            [TransformerEncoderLayer(dimension, n_heads, hidden, dropout, adapter) for i in range(num_layers)])
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, padding=None):
@@ -259,6 +285,7 @@ class TransformerDecoder(nn.Module):
             [TransformerDecoderLayer(dimension, n_heads, hidden, dropout, causal=causal) for i in range(num_layers)])
         self.dropout = nn.Dropout(dropout)
         self.d_model = dimension
+        # print('Use TransformerDecoder')
 
     def forward(self, x, encoding, context_padding=None, positional_encodings=True, answer_padding=None):
         if positional_encodings:

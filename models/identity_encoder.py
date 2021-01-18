@@ -44,7 +44,10 @@ class IdentityEncoder(nn.Module):
                                                     project=False,
                                                     finetune_pretrained=args.train_context_embeddings)
 
+        print('self.args.rnn_dimension:', self.args.rnn_dimension)
+        print('self.args.dimension', self.args.dimension)
         if self.args.rnn_layers > 0 and self.args.rnn_dimension != self.args.dimension:
+            print('dont equal!')
             self.dropout = nn.Dropout(args.dropout_ratio)
             self.projection = nn.Linear(self.encoder_embeddings.dimension, self.args.rnn_dimension, bias=False)
         else:
@@ -52,6 +55,7 @@ class IdentityEncoder(nn.Module):
             self.projection = None
 
         if self.args.rnn_layers > 0 and self.args.rnn_zero_state in ['average', 'cls']:
+            print('pool+norm')
             self.pool = LinearFeedforward(args.dimension, args.dimension, 2 * args.rnn_dimension * args.rnn_layers,
                                           dropout=args.dropout_ratio)
             self.norm = LayerNorm(2 * args.rnn_dimension * args.rnn_layers)
@@ -69,11 +73,22 @@ class IdentityEncoder(nn.Module):
         context, context_lengths = batch.context.value, batch.context.length
         question, question_lengths = batch.question.value, batch.question.length
 
-        context_padding = context.data == self.pad_idx
+        print('context', context.shape)
+        print('question', question.shape)
+
+        context_padding = context.data == self.pad_idx     # 1
         question_padding = question.data == self.pad_idx
+
+        print('pad_idx', self.pad_idx)
 
         context_embedded = self.encoder_embeddings(context, padding=context_padding)
         question_embedded = self.encoder_embeddings(question, padding=question_padding)
+
+        print('context_embedded', len(context_embedded.all_layers))
+        print(context_embedded.last_layer.shape)
+        print('question_embedded', len(question_embedded.all_layers))
+        print(question_embedded.last_layer.shape)
+        print('context_embedded.all_layers', len(context_embedded.all_layers))
 
         # pick the top-most N transformer layers to pass to the decoder for cross-attention
         # (add 1 to account for the embedding layer - the decoder will drop it later)
@@ -119,5 +134,8 @@ class IdentityEncoder(nn.Module):
                 # convert to a tuple of two (rnn_layers, batch, rnn_dimension) tensors
                 packed_rnn_state = packed_rnn_state.chunk(2, dim=0)
                 context_rnn_state = (packed_rnn_state[0].squeeze(0), packed_rnn_state[1].squeeze(0))
+
+        print('self_attended_context', len(self_attended_context))
+        print('self_attended_context', self_attended_context[0].shape)
 
         return self_attended_context, final_context, context_rnn_state, final_question, question_rnn_state

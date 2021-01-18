@@ -117,10 +117,6 @@ def sample_sequence(model, length, context, position_ids, num_samples=1, tempera
     segment_ids = torch.tensor(segment_ids, dtype=torch.long, device=device)
     segment_ids = segment_ids.repeat(num_samples, 1)
 
-    # print('context = ', context)
-    # print('position_ids = ', position_ids)
-    # print('segment_ids = ', segment_ids)
-
     past = None
     next_token = None
     with torch.no_grad():
@@ -388,10 +384,8 @@ def run_generation(args):
         reader = csv.reader(input_file, delimiter='\t')
         for row in tqdm(reader, desc='Reading Input File', total=number_of_lines):
             raw_text = row[args.input_column]
-            # print('before text = ', raw_text)
             raw_text, reverse_map = input_heuristics(raw_text)
             reverse_maps.append(reverse_map)
-            # print('after text = ', raw_text)
             raw_text += args.prompt_token
             if args.model_type in ["transfo-xl", "xlnet"]:
                 # Models with memory likes to have a long prompt for short inputs.
@@ -447,10 +441,6 @@ def run_generation(args):
         for i, o in enumerate(out):
             o = o[batch_context_lengths[i % (batch_slice[1]-batch_slice[0])]:]
             text = tokenizer.decode(o, clean_up_tokenization_spaces=True, skip_special_tokens=False)
-            # print('original tokens: ', batch_context_tokens[i % (batch_slice[1]-batch_slice[0])])
-            # print('generated tokens: ', o)
-            # print('original text: ', tokenizer.decode(batch_context_tokens[i % (batch_slice[1]-batch_slice[0])], clean_up_tokenization_spaces=True, skip_special_tokens=False))
-            # print('text = ', text)
             if args.stop_tokens is not None:
                 min_index = len(text)
                 for stop_token in args.stop_tokens:

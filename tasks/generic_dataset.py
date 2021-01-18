@@ -215,7 +215,9 @@ class TranslationDataset(CQA):
             source, target = langs[exts[0]], langs[exts[1]]
             src_path, trg_path = tuple(os.path.expanduser(path + x) for x in exts)
             question = f'Translate from {source} to {target}'
-
+            print(path)
+            print(src_path)
+            print(trg_path)
             examples = []
             with open(src_path) as src_file, open(trg_path) as trg_file:
                 for src_line, trg_line in zip(src_file, trg_file):
@@ -303,6 +305,7 @@ class IWSLT(TranslationDataset, CQA):
             Remaining keyword arguments: Passed to the splits method of
                 Dataset.
         """
+
         cls.dirname = cls.base_dirname.format(exts[0][1:], exts[1][1:])
         cls.urls = [cls.base_url.format(exts[0][1:], exts[1][1:], cls.dirname)]
         check = os.path.join(root, cls.name, cls.dirname)
@@ -373,6 +376,7 @@ class SQuAD(CQA):
         cache_name = os.path.join(cached_path, os.path.basename(path), str(subsample))
 
         examples, all_answers, q_ids = [], [], []
+        print('cache name:', cache_name)
         if os.path.exists(cache_name) and not skip_cache:
             logger.info(f'Loading cached data from {cache_name}')
             examples, all_answers, q_ids = torch.load(cache_name)
@@ -401,10 +405,10 @@ class SQuAD(CQA):
                                 answer_end = answer_start + len(answer)
                                 context_before_answer = context[:answer_start]
                                 context_after_answer = context[answer_end:]
-                                BEGIN = 'beginanswer '
-                                END = ' endanswer'
+                                BEGIN = 'beginanswer'
+                                END = 'endanswer'
 
-                                tagged_context = context_before_answer + BEGIN + answer + END + context_after_answer
+                                tagged_context = context_before_answer + BEGIN + ' ' + answer + ' ' + END + context_after_answer
                                 tagged_context = tagged_context.split()
 
                                 tokenized_answer = answer.split()
@@ -443,13 +447,12 @@ class SQuAD(CQA):
                                     import pdb;
                                     pdb.set_trace()
                                 context_spans += [len(tagged_context)]
-                                for context_idx, answer_word in zip(context_spans, ex.answer):
+                                for context_idx, answer_word in zip(context_spans, tokenized_answer):       #ex.answer
                                     if context_idx == len(tagged_context):
                                         continue
                                     if tagged_context[context_idx] != answer_word:
                                         import pdb;
                                         pdb.set_trace()
-
                                 ex = Example.from_raw(make_example_id(self, qa['id']),
                                                       ' '.join(tagged_context), question, ' '.join(tokenized_answer),
                                                       tokenize=tokenize, lower=lower)
@@ -1160,6 +1163,7 @@ class WOZ(CQA):
         test_data = None if test is None else cls(
             os.path.join(path, f'{test}.jsonl'), **kwargs)
 
+        print('validation_data:', validation_data)
         aux_data = None
         do_curriculum = kwargs.get('curriculum', False)
         if do_curriculum:

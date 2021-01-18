@@ -42,8 +42,6 @@ logger = logging.getLogger(__name__)
 
 def get_commit():
     directory = os.path.dirname(__file__)
-    print('arguments')
-    print(directory)
     return subprocess.Popen("cd {} && git log | head -n 1".format(directory), shell=True,
                             stdout=subprocess.PIPE).stdout.read().split()[1].decode()
 
@@ -73,7 +71,7 @@ def parse_argv(parser):
     parser.add_argument('--train_tasks', nargs='+', type=str, dest='train_task_names', help='tasks to use for training',
                         required=True)
     parser.add_argument('--train_iterations', nargs='+', type=int, help='number of iterations to focus on each task')
-    parser.add_argument('--train_batch_tokens', nargs='+', default=[9000], type=int,
+    parser.add_argument('--train_batch_tokens', nargs='+', default=[400], type=int,
                         help='Number of tokens to use for dynamic batching, corresponding to tasks in train tasks')
     parser.add_argument('--jump_start', default=0, type=int, help='number of iterations to give jump started tasks')
     parser.add_argument('--n_jump_start', default=0, type=int, help='how many tasks to jump start (presented in order)')
@@ -238,6 +236,7 @@ def parse_argv(parser):
     parser.add_argument('--curriculum_rate', default=0.1, type=float, help='growth rate for curriculum')
     parser.add_argument('--curriculum_strategy', default='linear', type=str, choices=['linear', 'exp'],
                         help='growth strategy for curriculum')
+    parser.add_argument('--adapter', default=None, choices=['simple'], help='structures to increase performance')
 
 
 def post_parse(args):

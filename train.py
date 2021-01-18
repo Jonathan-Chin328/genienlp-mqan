@@ -114,7 +114,6 @@ def prepare_data(args, logger):
         val_sets.append(split.eval)
         if args.vocab_tasks is not None and task.name in args.vocab_tasks:
             vocab_sets.extend(split)
-
     numericalizer, context_embeddings, question_embeddings, decoder_embeddings = \
         load_embeddings(args.embeddings,
                         args.context_embeddings,
@@ -163,7 +162,7 @@ def train_step(model, batch, iteration, opt, devices, lr_scheduler=None, grad_cl
                                                iteration > train_question_embeddings_after)
     if (iteration) % gradient_accumulation_steps == 0:
         opt.zero_grad()
-    loss = model(batch, pretraining=pretraining)[0]
+    loss = model(batch, pretraining=pretraining)[0]             # start fowards
     if torch.isnan(loss).any():
         raise RuntimeError('Got NaN loss %s', str(loss))
     if len(devices) > 1:
@@ -178,7 +177,6 @@ def train_step(model, batch, iteration, opt, devices, lr_scheduler=None, grad_cl
         for p in model.parameters():
             if p.grad is None:
                 continue
-            # print('p.grad = ', p.grad)
             p.grad /= accumulated_batch_lengths
         accumulated_batch_lengths = 0
         if grad_clip > 0.0:
@@ -235,10 +233,16 @@ def do_validate(iteration, args, model, numericalizer, val_iters, *,
             metric_entry += f'{metric_key}_{metric_value:.2f}:'
         metric_entry = metric_entry[:-1]
 
+        print('metric_dict', metric_dict)
+        print('deca_score task:', val_task.metrics[0])
+        print('val_task.metrics:', val_task.metrics)
         deca_score += metric_dict[val_task.metrics[0]]
 
         # val log
+        print('log_entry', log_entry)
+        print('metric_entry', metric_entry)
         logger.info(log_entry + metric_entry)
+        print('-------------------------------')
         if writer is not None:
             for metric_key, metric_value in metric_dict.items():
                 writer.add_scalar(f'{val_task.name}/{metric_key}/val', metric_value, iteration)
@@ -375,6 +379,10 @@ def train(args, devices, model, opt, lr_scheduler, train_sets, train_iterations,
         else:
             train_iterations = train_iter_deep
 
+            # print('train_iterations', train_iterations)
+            # print('train_iter_deep', train_iter_deep)
+        
+        # print('-------------round---------------')
         for task_idx, (task, train_iter) in enumerate(train_iters):
             task_iterations = train_iterations[task_idx] if train_iterations is not None else None
             if task_iterations == 0:
@@ -440,6 +448,7 @@ def train(args, devices, model, opt, lr_scheduler, train_sets, train_iterations,
             len_contexts += batch.context.value.size(1)
             len_answers += batch.answer.value.size(1)
 
+            # print('{iter}/{every}'.format(iter=iteration, every=log_every))
             if should_log(iteration, log_every):
                 local_loss /= log_every
                 num_examples /= log_every
@@ -541,6 +550,7 @@ def main(args):
     save_dict = None
     if args.load is not None:
         logger.info(f'Loading vocab from {os.path.join(args.save, args.load)}')
+        print(os.path.join(args.save, args.load))
         save_dict = torch.load(os.path.join(args.save, args.load))
     numericalizer, context_embeddings, question_embeddings, decoder_embeddings, train_sets, val_sets, aux_sets = \
         prepare_data(args, logger)
@@ -555,6 +565,29 @@ def main(args):
     opt, lr_scheduler = init_opt(args, model, logger)
     start_iteration = 1
 
+#----------------------------------------------------------------------------------------------------------------
+    # print('model structure')
+    # adapter = model.module.encoder.self_attentive_encoder_context.layers[0].selfattn.adapter
+    # print('model', adapter)
+    # # print('module buffer')
+    # # for buf in adapter.buffers():
+    # #     print(type(buf), buf.size())
+    # print('modules')
+    # for idx, m in enumerate(adapter.modules()):
+    #     print(idx, '->', m)
+    # print('named_buffers')
+    # for name, buf in adapter.named_buffers():
+    #     print(name, '->', buf)
+    # print('named_children of encoder')
+    # for name, module in model.module.encoder.named_children():
+    #     print(name, '->', module)
+    # print('named_parameters')
+    # for name, param in adapter.named_parameters():
+    #     print(name, '->', param)
+    # print('state_dict', adapter.state_dict())
+    # print('register_parameter')
+    # # adapter.register_parameter()
+#----------------------------------------------------------------------------------------------------------------
 
     if save_dict is not None and args.resume:
         logger.info(f'Resuming Training from {os.path.splitext(args.load)[0]}_optim.pth')
@@ -570,6 +603,7 @@ def main(args):
         writer = None
 
     if not args.resume and args.pretrain_context > 0:
+        print('resume', args.resume)
         pretrain_opt, pretrain_lr_scheduler = init_opt(args, model, logger)
         train_iterations = [args.pretrain_context for _ in args.train_tasks]
         train(args, devices, model, pretrain_opt, pretrain_lr_scheduler, train_sets,

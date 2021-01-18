@@ -36,6 +36,7 @@ from multiprocessing import Pool, cpu_count
 from subprocess import Popen, PIPE
 
 import numpy as np
+import ujson as json
 from pyrouge import Rouge155
 from sacrebleu import corpus_bleu
 
@@ -122,12 +123,31 @@ def to_lf(s, table):
     return logical_form
 
 
-def computeLFEM(greedy, answer):
+def computeLFEM(greedy, answer, args):
+    #----------------------------add by myself----------------------------------------
+    data_dir = os.path.join(args.data, 'wikisql', 'data')
+    path = os.path.join(data_dir, 'dev.jsonl')
+    table_path = os.path.join(data_dir, 'dev.tables.jsonl')
+    with open(table_path) as tables_file:
+        tables = [json.loads(line) for line in tables_file]
+        id_to_tables = {x['id']: x for x in tables}
+
+    examples = []
+    with open(path) as example_file:
+        for line in example_file:
+            entry = json.loads(line)
+            table = id_to_tables[entry['table_id']]
+            sql = entry['sql']
+            header = table['header']
+            a = repr(Query.from_dict(entry['sql'], table['header']))
+            ex = {'sql': sql, 'header': header, 'answer': a, 'table': table}
+            examples.append(ex)
+    #----------------------------------------------------------------------------------
     answer = [x[0] for x in answer]
     count = 0
     correct = 0
     text_answers = []
-    for idx, (g, ex) in enumerate(zip(greedy, answer)):
+    for idx, (g, ex) in enumerate(zip(greedy, examples)):    # answer changes to examples
         count += 1
         text_answers.append([ex['answer'].lower()])
         try:
@@ -229,7 +249,7 @@ def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
     return max(scores_for_ground_truths)
 
 
-def computeF1(outputs, targets):
+def computeF1(outputs, targets):       # len(outputs) = 10547
     return sum([metric_max_over_ground_truths(f1_score, o, t) for o, t in zip(outputs, targets)]) / len(outputs) * 100
 
 
@@ -390,7 +410,7 @@ def dict_cmp(d1, d2):
 def computeDialogue(greedy, answer):
     examples = []
     for idx, (g, a) in enumerate(zip(greedy, answer)):
-        examples.append((a[0][0], g, a[0][1], idx))
+        examples.append(('0_0', g, a[0], idx))
     examples.sort()
     turn_request_positives = 0
     turn_goal_positives = 0
@@ -420,7 +440,7 @@ def computeDialogue(greedy, answer):
     return joint_goal_em, turn_request_em, turn_goal_em, answer
 
 
-def compute_metrics(greedy, answer, requested_metrics, batch_mode=True):
+def compute_metrics(greedy, answer, requested_metrics, batch_mode=True, args=None):
     if not batch_mode:
         greedy = [greedy]
         answer = [answer]
@@ -429,7 +449,7 @@ def compute_metrics(greedy, answer, requested_metrics, batch_mode=True):
     if not isinstance(answer[0], list):
         answer = [[a] for a in answer]
     if 'lfem' in requested_metrics:
-        lfem, answer = computeLFEM(greedy, answer)
+        lfem, answer = computeLFEM(greedy, answer, args)
         metric_keys += ['lfem']
         metric_values += [lfem]
     if 'joint_goal_em' in requested_metrics:

@@ -70,6 +70,9 @@ class Seq2Seq(PreTrainedModel):
         self.numericalizer = numericalizer
         self.encoder = ENCODERS[args.seq2seq_encoder](numericalizer, args, context_embeddings, question_embeddings)
         self.decoder = DECODERS[args.seq2seq_decoder](numericalizer, args, decoder_embeddings)
+        # print(self.numericalizer)
+        # print(self.encoder)
+        # print(self.decoder)
 
         if self.args.pretrain_context > 0:
             self.context_pretrain_lm_head = torch.nn.Linear(self.args.dimension, numericalizer.num_tokens)
@@ -101,6 +104,7 @@ class Seq2Seq(PreTrainedModel):
             self_attended_context, final_context, context_rnn_state, final_question, question_rnn_state = encoder_output
         encoder_loss = None
         if self.training and getattr(self.args, 'use_encoder_loss', None):
+            # print('*******************************************')
             encoder_loss = self.get_encoder_loss(context_rnn_state)
         return self.decoder(batch, self_attended_context, final_context, context_rnn_state,
                             final_question, question_rnn_state, encoder_loss, current_token_id, decoder_wrapper=past,
@@ -174,6 +178,32 @@ class Seq2Seq(PreTrainedModel):
         self.config.is_encoder_decoder = False # in order to make it work with `transformers` generation code, we should treat this as a decoder-only model
         batch_size = len(batch.example_id)
         input_ids = torch.full((batch_size, 1), self.decoder.init_idx, dtype=torch.long, device=batch.context.value.device)
+
+        # print('--------------------------------------------')
+        # print('input_ids', input_ids.shape)
+        # print('max_output_length', max_output_length)
+        # print('self.decoder.init_idx', self.decoder.init_idx)
+        # print('batch.decoder_vocab.pad_idx', batch.decoder_vocab.pad_idx)
+        # print('num_outputs', num_outputs)
+        # print('repetition_penalty', repetition_penalty)
+        # print('temperature', temperature)
+        # print('batch.decoder_vocab.eos_idx', batch.decoder_vocab.eos_idx)
+        # print('top_k', top_k)
+        # print('top_p', top_p)
+        # print('num_beams', num_beams)
+        # print('no_repeat_ngram_size', no_repeat_ngram_size)
+        # print('do_sample', do_sample)
+        # print('max_output_length', max_output_length)
+        # print('num_beams', num_beams)
+        # print('encoder_output', len(encoder_output[0]))
+        # print('encoder_output', encoder_output[0][0].shape)
+        # print('encoder_output', encoder_output[1].shape)
+        # print('encoder_output', len(encoder_output[2]))
+        # print('encoder_output', encoder_output[2][0].shape)
+        # print('encoder_output', encoder_output[3].shape)
+        # print('encoder_output', len(encoder_output[4]))
+        # print('encoder_output', encoder_output[4][0].shape)
+        # print('--------------------------------------------')
         
         generated = super().generate(input_ids=input_ids,
                                      batch=batch,

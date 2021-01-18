@@ -182,7 +182,8 @@ class CNNDailyMail(BaseSummarizationTask):
         split_cnn = generic_dataset.CNN.splits(root=root, tokenize=self.tokenize, **kwargs)
         split_dm = generic_dataset.DailyMail.splits(root=root, tokenize=self.tokenize, **kwargs)
         for scnn, sdm in zip(split_cnn, split_dm):
-            scnn.examples.extend(sdm)
+            if scnn is not None:
+                scnn.examples.extend(sdm)
         return split_cnn
 
 

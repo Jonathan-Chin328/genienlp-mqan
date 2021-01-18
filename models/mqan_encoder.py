@@ -58,7 +58,7 @@ class MQANEncoder(nn.Module):
                                                            num_layers=args.rnn_layers)
         self.self_attentive_encoder_context = TransformerEncoder(args.dimension, args.transformer_heads,
                                                                  args.transformer_hidden, args.transformer_layers,
-                                                                 args.dropout_ratio)
+                                                                 args.dropout_ratio, args.adapter)
         self.bilstm_context = PackedLSTM(args.dimension, args.dimension,
                                          batch_first=True, dropout=dp(args), bidirectional=True,
                                          num_layers=args.rnn_layers)
@@ -68,7 +68,7 @@ class MQANEncoder(nn.Module):
                                                             num_layers=args.rnn_layers)
         self.self_attentive_encoder_question = TransformerEncoder(args.dimension, args.transformer_heads,
                                                                   args.transformer_hidden, args.transformer_layers,
-                                                                  args.dropout_ratio)
+                                                                  args.dropout_ratio, args.adapter)
         self.bilstm_question = PackedLSTM(args.dimension, args.dimension,
                                           batch_first=True, dropout=dp(args), bidirectional=True,
                                           num_layers=args.rnn_layers)
@@ -83,11 +83,19 @@ class MQANEncoder(nn.Module):
         context, context_lengths = batch.context.value, batch.context.length
         question, question_lengths = batch.question.value, batch.question.length
 
+        # print(context.shape)
+        # print(len(context_lengths))
+        # print(question.shape)
+        # print(len(question_lengths))
+
         context_padding = context.data == self.pad_idx
         question_padding = question.data == self.pad_idx
 
         context_embedded = self.encoder_embeddings(context, padding=context_padding).last_layer
         question_embedded = self.encoder_embeddings(question, padding=question_padding).last_layer
+
+        # print('context_embedded', context_embedded.shape)   # ????
+        # print('question_embedded', question_embedded.shape)
 
         context_encoded = self.bilstm_before_coattention(context_embedded, context_lengths)[0]
         question_encoded = self.bilstm_before_coattention(question_embedded, question_lengths)[0]
@@ -108,6 +116,19 @@ class MQANEncoder(nn.Module):
         final_question, (question_rnn_h, question_rnn_c) = self.bilstm_question(self_attended_question[-1],
                                                                                 question_lengths)
         question_rnn_state = [self.reshape_rnn_state(x) for x in (question_rnn_h, question_rnn_c)]
+
+        # print('final_context', final_context.shape)
+        # print('final_question', final_question.shape)
+        # print('self_attended_context', len(self_attended_context))
+        # print(self_attended_context[0].shape)
+        # print(self_attended_context[1].shape)
+        # print(self_attended_context[-1].shape)
+        # print('context_rnn_state', len(context_rnn_state))
+        # print(context_rnn_state[0].shape)
+        # print(context_rnn_state[1].shape)
+        # print('question_rnn_state', len(question_rnn_state))
+        # print(question_rnn_state[0].shape)
+        # print(question_rnn_state[1].shape)
 
         return self_attended_context, final_context, context_rnn_state, final_question, question_rnn_state
 
